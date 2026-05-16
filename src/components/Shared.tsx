@@ -16,7 +16,7 @@ import {
 import { motion } from 'motion/react';
 
 // --- Types ---
-export type Screen = 'LANDING' | 'LOGIN' | 'DASHBOARD' | 'PATIENT_PROFILE' | 'NEW_PRESCRIPTION' | 'PRESCRIPTION_BUILDER' | 'PATIENT_DASHBOARD' | 'SCHEDULE' | 'ANALYTICS' | 'SETTINGS';
+export type Screen = 'LANDING' | 'LOGIN' | 'DASHBOARD' | 'PATIENT_PROFILE' | 'NEW_PRESCRIPTION' | 'PRESCRIPTION_BUILDER' | 'PATIENT_DASHBOARD' | 'SCHEDULE' | 'ANALYTICS' | 'SETTINGS' | 'DIGITAL_RX';
 
 export interface AuthUser {
   email: string;

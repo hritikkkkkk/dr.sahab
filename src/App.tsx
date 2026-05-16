@@ -10,6 +10,7 @@ import Settings from './components/Settings';
 import LandingPage from './components/LandingPage';
 import PatientDashboard from './components/PatientDashboard';
 import Analytics from './components/Analytics';
+import DigitalPrescription from './components/DigitalPrescription';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 
@@ -17,8 +18,21 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('LANDING');
   const [initializing, setInitializing] = useState(true);
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [rxId, setRxId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Check if URL is a direct link to a prescription
+    const path = window.location.pathname;
+    if (path.startsWith('/rx/')) {
+      const id = path.split('/rx/')[1];
+      if (id) {
+        setRxId(id);
+        setCurrentScreen('DIGITAL_RX');
+        setInitializing(false);
+        return; // Skip normal auth flow for public Rx viewer
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         const token = await firebaseUser.getIdToken();
@@ -69,6 +83,8 @@ export default function App() {
         return <LandingPage onNavigate={setCurrentScreen} />;
       case 'LOGIN':
         return <LoginScreen onLogin={handleLogin} />;
+      case 'DIGITAL_RX':
+        return <DigitalPrescription patientId={rxId!} onBack={() => window.location.href = '/'} />;
       case 'PATIENT_DASHBOARD':
         return user ? <PatientDashboard user={user} setScreen={setCurrentScreen} /> : <LoginScreen onLogin={handleLogin} />;
       case 'DASHBOARD':
@@ -90,7 +106,7 @@ export default function App() {
     }
   };
 
-  if (currentScreen === 'LOGIN' || currentScreen === 'LANDING' || currentScreen === 'PATIENT_DASHBOARD') {
+  if (currentScreen === 'LOGIN' || currentScreen === 'LANDING' || currentScreen === 'PATIENT_DASHBOARD' || currentScreen === 'DIGITAL_RX') {
     return renderScreen();
   }
 
