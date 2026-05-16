@@ -12,20 +12,23 @@ import {
   Download,
   ShieldCheck,
   Stethoscope,
-  X
+  X,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Screen, AuthUser, clearAuthToken } from './Shared';
 import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import DigitalPrescription from './DigitalPrescription';
 
 export default function PatientDashboard({ user, setScreen }: { user: AuthUser, setScreen: (s: Screen) => void }) {
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
-  const [reminders, setReminders] = useState<any[]>([]);
+  const [activeMeds, setActiveMeds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRxId, setSelectedRxId] = useState<string | null>(null);
+  const [view, setView] = useState<'LOCKER' | 'DOSAGE'>('LOCKER');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -41,16 +44,19 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
           orderBy('createdAt', 'desc')
         );
         const rxSnap = await getDocs(rxQ);
-        setPrescriptions(rxSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        const rxList = rxSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setPrescriptions(rxList);
 
-        // Fetch Reminders
-        const remQ = query(
-          collection(db, 'reminders'),
-          where('patientId', '==', user.patientId),
-          orderBy('createdAt', 'desc')
-        );
-        const remSnap = await getDocs(remQ);
-        setReminders(remSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+        // Fetch Active Meds from the LATEST prescription
+        if (rxList.length > 0) {
+          const latestRxId = rxList[0].id;
+          const medsQ = query(
+            collection(db, 'prescription_items'),
+            where('prescriptionId', '==', latestRxId)
+          );
+          const medsSnap = await getDocs(medsQ);
+          setActiveMeds(medsSnap.docs.map(doc => ({ id: doc.id, ...doc.data(), taken: false })));
+        }
       } catch (error) {
         console.error("Error fetching patient data:", error);
       } finally {
@@ -66,6 +72,10 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
     window.location.reload();
   };
 
+  const toggleMedTaken = (id: string) => {
+    setActiveMeds(prev => prev.map(m => m.id === id ? { ...m, taken: !m.taken } : m));
+  };
+
   const filteredPrescriptions = prescriptions.filter(rx => 
     rx.diagnosis?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     rx.doctorName?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -75,10 +85,81 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
     return <DigitalPrescription patientId={selectedRxId} onBack={() => setSelectedRxId(null)} />;
   }
 
+  const renderDosageTimeline = () => (
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <h2 className="text-2xl font-serif font-black text-zinc-950">Medication Timeline</h2>
+          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-1">Today, {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}</p>
+        </div>
+        <div className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-2xl border border-emerald-100 flex items-center gap-2">
+          <CheckCircle2 size={16} />
+          <span className="text-[10px] font-black uppercase tracking-widest">{activeMeds.filter(m => m.taken).length}/{activeMeds.length} Taken</span>
+        </div>
+      </div>
+
+      {activeMeds.length === 0 ? (
+        <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 p-16 rounded-[3rem] text-center">
+          <AlertCircle size={40} className="text-zinc-200 mx-auto mb-4" />
+          <p className="text-xs font-black text-zinc-400 uppercase tracking-widest">No active medications scheduled</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {['1-0-0', '0-1-0', '0-0-1'].map((timeSlot, idx) => {
+            const slotMeds = activeMeds.filter(m => {
+               if (timeSlot === '1-0-0') return m.frequency?.includes('1-0-0') || m.frequency?.includes('1-1-1') || m.frequency?.includes('1-0-1');
+               if (timeSlot === '0-1-0') return m.frequency?.includes('0-1-0') || m.frequency?.includes('1-1-1');
+               if (timeSlot === '0-0-1') return m.frequency?.includes('0-0-1') || m.frequency?.includes('1-1-1') || m.frequency?.includes('1-0-1');
+               return false;
+            });
+
+            if (slotMeds.length === 0) return null;
+
+            return (
+              <div key={timeSlot} className="relative pl-10">
+                {/* Vertical Line */}
+                <div className="absolute left-4 top-2 bottom-0 w-0.5 bg-zinc-100"></div>
+                <div className="absolute left-2.5 top-2 w-3.5 h-3.5 rounded-full bg-zinc-950 border-4 border-white shadow-sm"></div>
+                
+                <h3 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-4 ml-2">
+                  {timeSlot === '1-0-0' ? '🌅 Morning' : timeSlot === '0-1-0' ? '☀️ Afternoon' : '🌙 Night'}
+                </h3>
+
+                <div className="grid gap-4">
+                  {slotMeds.map((med) => (
+                    <motion.div 
+                      key={med.id}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => toggleMedTaken(med.id)}
+                      className={`p-5 rounded-[2rem] border transition-all cursor-pointer flex items-center justify-between ${med.taken ? 'bg-emerald-50 border-emerald-100 opacity-60' : 'bg-white border-zinc-100 shadow-xl shadow-zinc-200/20'}`}
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${med.taken ? 'bg-white text-emerald-600' : 'bg-zinc-50 text-zinc-400'}`}>
+                          <Activity size={24} />
+                        </div>
+                        <div>
+                          <h4 className={`font-bold transition-all ${med.taken ? 'text-emerald-900 line-through' : 'text-zinc-950'}`}>{med.drugName}</h4>
+                          <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">{med.dosage} • {med.instructions || 'After Food'}</p>
+                        </div>
+                      </div>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 transition-all ${med.taken ? 'bg-emerald-600 border-emerald-600 text-white' : 'border-zinc-100 text-transparent'}`}>
+                        <CheckCircle2 size={16} />
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-zinc-950 pb-20">
       {/* Header */}
-      <header className="bg-zinc-950 text-white p-8 pb-20 rounded-b-[3rem] relative overflow-hidden">
+      <header className="bg-zinc-950 text-white p-8 pb-24 rounded-b-[3rem] relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
         
         <div className="max-w-4xl mx-auto flex justify-between items-center mb-10 relative z-10">
@@ -103,136 +184,144 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
           className="max-w-4xl mx-auto relative z-10"
         >
           <div className="flex items-center gap-2 mb-3">
-            <span className="px-2 py-1 bg-red-600/20 text-red-500 rounded text-[10px] font-bold uppercase tracking-widest border border-red-600/20">Health Locker Active</span>
+            <span className="px-2 py-1 bg-red-600/20 text-red-500 rounded text-[10px] font-bold uppercase tracking-widest border border-red-600/20">Patient Portal</span>
             <span className="px-2 py-1 bg-white/5 text-zinc-500 rounded text-[10px] font-bold uppercase tracking-widest border border-white/5">ID: {user.patientId || 'NEW'}</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-serif font-black mb-3">Welcome, {user.name?.split(' ')[0] || 'Guest'}</h1>
-          <p className="text-zinc-400 font-medium max-w-md leading-relaxed text-sm md:text-base">Your secure digital vault for all prescriptions and clinical records.</p>
+          <h1 className="text-4xl md:text-5xl font-serif font-black mb-3 italic">Hello, {user.name?.split(' ')[0] || 'Guest'}</h1>
+          <p className="text-zinc-400 font-medium max-w-md leading-relaxed text-sm">Stay on track with your recovery and clinical history.</p>
         </motion.div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 -mt-10 space-y-10 relative z-20 pb-10">
-        {/* Statistics Bar */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[
-            { label: 'Total Records', value: prescriptions.length, icon: FileText, color: 'text-zinc-600', bg: 'bg-white' },
-            { label: 'Active Meds', value: reminders.length, icon: Activity, color: 'text-red-600', bg: 'bg-white' },
-            { label: 'Latest Visit', value: prescriptions.length > 0 ? 'Today' : 'None', icon: Clock, color: 'text-blue-600', bg: 'bg-white' },
-            { label: 'Health Score', value: 'Stable', icon: Heart, color: 'text-emerald-500', bg: 'bg-white' },
-          ].map((stat, i) => (
-            <motion.div 
-              key={i}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.1 }}
-              className={`${stat.bg} p-5 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 flex flex-col items-start gap-2`}
-            >
-              <stat.icon size={18} className={stat.color} />
-              <div>
-                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-0.5">{stat.label}</p>
-                <p className="text-xl font-serif font-black text-zinc-950">{stat.value}</p>
-              </div>
-            </motion.div>
-          ))}
+      <main className="max-w-4xl mx-auto px-6 -mt-12 space-y-10 relative z-20 pb-10">
+        
+        {/* Navigation Tabs */}
+        <div className="flex bg-white p-1.5 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-200/40">
+          <button 
+            onClick={() => setView('LOCKER')}
+            className={`flex-1 py-4 rounded-[1.8rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${view === 'LOCKER' ? 'bg-zinc-950 text-white shadow-lg' : 'text-zinc-400 hover:text-zinc-600'}`}
+          >
+            <ShieldCheck size={14} /> Health Locker
+          </button>
+          <button 
+            onClick={() => setView('DOSAGE')}
+            className={`flex-1 py-4 rounded-[1.8rem] text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${view === 'DOSAGE' ? 'bg-zinc-950 text-white shadow-lg' : 'text-zinc-400 hover:text-zinc-600'}`}
+          >
+            <Clock size={14} /> Dosage Timeline
+          </button>
         </div>
 
-        {/* Search & Filter */}
-        <div className="relative group">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={20} />
-          <input 
-            type="text"
-            placeholder="Search prescriptions by diagnosis or doctor..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-zinc-100 rounded-3xl pl-14 pr-6 py-5 text-sm font-bold shadow-xl shadow-zinc-200/30 outline-none focus:ring-2 focus:ring-red-600/10 focus:border-red-600 transition-all placeholder:text-zinc-400"
-          />
-        </div>
-
-        {/* Prescription Locker Grid */}
-        <section>
-          <div className="flex items-center justify-between mb-6 px-2">
-            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-950 flex items-center gap-2 italic">
-              <ShieldCheck size={18} className="text-red-600" /> Digital Records Locker
-            </h2>
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{filteredPrescriptions.length} Records found</p>
-          </div>
-          
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className="h-48 bg-zinc-100 animate-pulse rounded-[2.5rem]"></div>
+        {view === 'DOSAGE' ? renderDosageTimeline() : (
+          <>
+            {/* Statistics Bar */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {[
+                { label: 'Total Records', value: prescriptions.length, icon: FileText, color: 'text-zinc-600', bg: 'bg-white' },
+                { label: 'Active Meds', value: activeMeds.length, icon: Activity, color: 'text-red-600', bg: 'bg-white' },
+                { label: 'Latest Visit', value: prescriptions.length > 0 ? 'Today' : 'None', icon: Clock, color: 'text-blue-600', bg: 'bg-white' },
+                { label: 'Health Score', value: 'Stable', icon: Heart, color: 'text-emerald-500', bg: 'bg-white' },
+              ].map((stat, i) => (
+                <div 
+                  key={i}
+                  className={`${stat.bg} p-5 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 flex flex-col items-start gap-2`}
+                >
+                  <stat.icon size={18} className={stat.color} />
+                  <div>
+                    <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-0.5">{stat.label}</p>
+                    <p className="text-xl font-serif font-black text-zinc-950">{stat.value}</p>
+                  </div>
+                </div>
               ))}
             </div>
-          ) : filteredPrescriptions.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <AnimatePresence mode='popLayout'>
-                {filteredPrescriptions.map((rx, idx) => (
-                  <motion.div 
-                    key={rx.id}
-                    layout
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.9 }}
-                    transition={{ delay: idx * 0.05 }}
-                    onClick={() => setSelectedRxId(rx.id)}
-                    className="bg-white p-7 rounded-[2.5rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 hover:shadow-2xl hover:shadow-red-600/5 hover:-translate-y-1 transition-all group cursor-pointer relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="bg-red-600 text-white p-2 rounded-full shadow-lg">
-                        <Download size={16} />
-                      </div>
-                    </div>
 
-                    <div className="flex justify-between items-start mb-6">
-                      <div className="w-12 h-12 rounded-2xl bg-zinc-50 text-zinc-400 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-600 transition-colors border border-zinc-100">
-                        <FileText size={24} />
-                      </div>
-                      <div className="text-right">
-                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold uppercase tracking-widest border border-emerald-100">Verified</span>
-                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-2">
-                          {rx.createdAt?.toDate ? new Date(rx.createdAt.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <h3 className="text-xl font-serif font-black mb-2 text-zinc-950 leading-tight group-hover:text-red-600 transition-colors">
-                      {rx.diagnosis || 'Clinical Consultation'}
-                    </h3>
-                    
-                    <div className="flex items-center gap-2 mb-6 text-zinc-500">
-                      <Stethoscope size={14} className="text-red-600" />
-                      <p className="text-xs font-bold uppercase tracking-widest">Dr. {rx.doctorName || 'Sahab'}</p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      <span className="px-3 py-1 bg-zinc-50 text-[10px] font-bold text-zinc-500 rounded-lg border border-zinc-100">Prescription Record</span>
-                      <span className="px-3 py-1 bg-zinc-50 text-[10px] font-bold text-zinc-500 rounded-lg border border-zinc-100 italic">#{rx.id.slice(0, 6)}</span>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+            {/* Search & Filter */}
+            <div className="relative group">
+              <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={20} />
+              <input 
+                type="text"
+                placeholder="Search prescriptions by diagnosis or doctor..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-zinc-100 rounded-3xl pl-14 pr-6 py-5 text-sm font-bold shadow-xl shadow-zinc-200/30 outline-none focus:ring-2 focus:ring-red-600/10 focus:border-red-600 transition-all placeholder:text-zinc-400"
+              />
             </div>
-          ) : (
-            <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 p-20 rounded-[3rem] text-center">
-              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-zinc-200/50">
-                <FileText size={32} className="text-zinc-200" />
+
+            {/* Prescription Locker Grid */}
+            <section>
+              <div className="flex items-center justify-between mb-6 px-2">
+                <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-950 flex items-center gap-2 italic">
+                  <FileText size={18} className="text-red-600" /> Historical Records
+                </h2>
               </div>
-              <h3 className="text-lg font-serif font-bold text-zinc-950 mb-1">Your Locker is Empty</h3>
-              <p className="text-sm text-zinc-400 font-medium">Once your doctor issues a prescription, it will appear here automatically.</p>
-            </div>
-          )}
-        </section>
+              
+              {loading ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="h-48 bg-zinc-100 animate-pulse rounded-[2.5rem]"></div>
+                  ))}
+                </div>
+              ) : filteredPrescriptions.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <AnimatePresence mode='popLayout'>
+                    {filteredPrescriptions.map((rx, idx) => (
+                      <motion.div 
+                        key={rx.id}
+                        layout
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        transition={{ delay: idx * 0.05 }}
+                        onClick={() => setSelectedRxId(rx.id)}
+                        className="bg-white p-7 rounded-[2.5rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 hover:shadow-2xl hover:shadow-red-600/5 hover:-translate-y-1 transition-all group cursor-pointer relative overflow-hidden"
+                      >
+                        <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity text-red-600">
+                          <Download size={20} />
+                        </div>
 
-        {/* Help & Support Card */}
+                        <div className="flex justify-between items-start mb-6">
+                          <div className="w-12 h-12 rounded-2xl bg-zinc-50 text-zinc-400 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-600 transition-colors border border-zinc-100">
+                            <FileText size={24} />
+                          </div>
+                          <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mt-2">
+                            {rx.createdAt?.toDate ? new Date(rx.createdAt.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                          </p>
+                        </div>
+
+                        <h3 className="text-xl font-serif font-black mb-2 text-zinc-950 leading-tight group-hover:text-red-600 transition-colors italic">
+                          {rx.diagnosis || 'General Consultation'}
+                        </h3>
+                        
+                        <div className="flex items-center gap-2 mb-6 text-zinc-500">
+                          <Stethoscope size={14} className="text-red-600" />
+                          <p className="text-[10px] font-black uppercase tracking-widest">Dr. {rx.doctorName || 'Sahab'}</p>
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          <span className="px-3 py-1 bg-zinc-50 text-[9px] font-black text-zinc-500 rounded-lg border border-zinc-100 uppercase tracking-tighter">Verified Clinical Record</span>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              ) : (
+                <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 p-20 rounded-[3rem] text-center">
+                  <FileText size={32} className="text-zinc-200 mx-auto mb-4" />
+                  <p className="text-sm text-zinc-400 font-medium">No records found matching your search.</p>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* Support Card */}
         <div className="bg-zinc-950 p-8 rounded-[3rem] text-white relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 rounded-full blur-3xl -mr-16 -mt-16"></div>
           <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
             <div>
-              <h3 className="text-xl font-serif font-bold mb-2">Need a copy of your records?</h3>
-              <p className="text-zinc-500 text-sm font-medium">You can download and share your medical documents securely with other providers.</p>
+              <h3 className="text-xl font-serif font-bold mb-2">Have questions about your meds?</h3>
+              <p className="text-zinc-500 text-sm font-medium italic">Contact your doctor directly via the clinical portal or visit the clinic.</p>
             </div>
-            <button className="px-8 py-4 bg-white text-zinc-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all active:scale-95 shadow-xl whitespace-nowrap">
-              Learn More
+            <button className="px-8 py-4 bg-red-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-700 transition-all active:scale-95 shadow-xl whitespace-nowrap">
+              Get Help
             </button>
           </div>
         </div>
