@@ -1,10 +1,9 @@
 {
-  "projectId": "echista-2k26",
-  "appId": "1:1006166337108:web:7b9119c0b8fae6fc216fc1",
-  "apiKey": "AIzaSyD20k-Vo_jFd1u7Rjjz0LIpxGaNtfmbbu8",
-  "authDomain": "echista-2k26.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-13926dd4-d88a-4a82-a940-c2788720bb3f",
-  "storageBucket": "echista-2k26.firebasestorage.app",
-  "messagingSenderId": "1006166337108",
-  "measurementId": ""
+  "apiKey": "AIzaSyAlxgOeWNjkZ7nbr27mGOBxexQIw8VpTo8",
+  "authDomain": "mediscript-5a5c7.firebaseapp.com",
+  "projectId": "mediscript-5a5c7",
+  "storageBucket": "mediscript-5a5c7.firebasestorage.app",
+  "messagingSenderId": "297386079567",
+  "appId": "1:297386079567:web:3a718af8647ca6e307413a",
+  "measurementId": "G-NB8R0EVWXD"
 }
