@@ -1,4 +1,4 @@
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   FileText, 
   Calendar, 
@@ -7,27 +7,38 @@ import {
   Heart, 
   Activity,
   ChevronRight,
-  Clock
+  Clock,
+  Search,
+  Download,
+  ShieldCheck,
+  Stethoscope,
+  X
 } from 'lucide-react';
 import { Screen, AuthUser, clearAuthToken } from './Shared';
 import { useState, useEffect } from 'react';
 import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import DigitalPrescription from './DigitalPrescription';
 
 export default function PatientDashboard({ user, setScreen }: { user: AuthUser, setScreen: (s: Screen) => void }) {
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [reminders, setReminders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRxId, setSelectedRxId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (!user.patientId) return;
+      if (!user.patientId) {
+        setLoading(false);
+        return;
+      }
       try {
         // Fetch Prescriptions
         const rxQ = query(
           collection(db, 'prescriptions'),
-          where('patient_id', '==', user.patientId),
-          orderBy('created_at', 'desc')
+          where('patientId', '==', user.patientId),
+          orderBy('createdAt', 'desc')
         );
         const rxSnap = await getDocs(rxQ);
         setPrescriptions(rxSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -35,9 +46,8 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
         // Fetch Reminders
         const remQ = query(
           collection(db, 'reminders'),
-          where('patient_id', '==', user.patientId),
-          where('status', '==', 'pending'),
-          orderBy('date', 'asc')
+          where('patientId', '==', user.patientId),
+          orderBy('createdAt', 'desc')
         );
         const remSnap = await getDocs(remQ);
         setReminders(remSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
@@ -56,132 +66,176 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
     window.location.reload();
   };
 
+  const filteredPrescriptions = prescriptions.filter(rx => 
+    rx.diagnosis?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    rx.doctorName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  if (selectedRxId) {
+    return <DigitalPrescription patientId={selectedRxId} onBack={() => setSelectedRxId(null)} />;
+  }
+
   return (
     <div className="min-h-screen bg-[#FDFDFD] text-zinc-950 pb-20">
       {/* Header */}
-      <header className="bg-zinc-950 text-white p-8 pb-16 rounded-b-[3rem]">
-        <div className="max-w-4xl mx-auto flex justify-between items-center mb-10">
+      <header className="bg-zinc-950 text-white p-8 pb-20 rounded-b-[3rem] relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[100px] -mr-32 -mt-32"></div>
+        
+        <div className="max-w-4xl mx-auto flex justify-between items-center mb-10 relative z-10">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-serif text-xl font-bold">D</div>
-            <span className="font-serif text-xl font-bold">Dr. Sahab</span>
+            <div className="w-10 h-10 rounded-full bg-red-600 text-white flex items-center justify-center font-serif text-xl font-bold shadow-lg shadow-red-600/20">D</div>
+            <span className="font-serif text-xl font-bold tracking-tight">Dr. Sahab</span>
           </div>
-          <button onClick={handleLogout} className="p-2 bg-white/10 rounded-full hover:bg-white/20 transition-colors">
-            <LogOut size={20} />
-          </button>
+          <div className="flex items-center gap-4">
+            <button className="relative p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors">
+              <Bell size={20} className="text-zinc-400" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-red-600 rounded-full border border-zinc-950"></span>
+            </button>
+            <button onClick={handleLogout} className="p-2 bg-white/5 rounded-full hover:bg-white/10 transition-colors text-zinc-400 hover:text-white">
+              <LogOut size={20} />
+            </button>
+          </div>
         </div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-4xl mx-auto"
+          className="max-w-4xl mx-auto relative z-10"
         >
-          <p className="text-red-500 font-bold uppercase tracking-widest text-[10px] mb-2 italic">Patient Portal Access</p>
-          <h1 className="text-4xl md:text-5xl font-serif font-black mb-2">Hello, {user.name || 'Guest'}</h1>
-          <p className="text-zinc-400 font-medium">Manage your clinical records and follow-ups securely.</p>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="px-2 py-1 bg-red-600/20 text-red-500 rounded text-[10px] font-bold uppercase tracking-widest border border-red-600/20">Health Locker Active</span>
+            <span className="px-2 py-1 bg-white/5 text-zinc-500 rounded text-[10px] font-bold uppercase tracking-widest border border-white/5">ID: {user.patientId || 'NEW'}</span>
+          </div>
+          <h1 className="text-4xl md:text-5xl font-serif font-black mb-3">Welcome, {user.name?.split(' ')[0] || 'Guest'}</h1>
+          <p className="text-zinc-400 font-medium max-w-md leading-relaxed text-sm md:text-base">Your secure digital vault for all prescriptions and clinical records.</p>
         </motion.div>
       </header>
 
-      <main className="max-w-4xl mx-auto px-6 -mt-8 space-y-8">
-        {/* Quick Stats */}
+      <main className="max-w-4xl mx-auto px-6 -mt-10 space-y-10 relative z-20 pb-10">
+        {/* Statistics Bar */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm">
-            <Activity size={20} className="text-red-600 mb-2" />
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Vitality</p>
-            <p className="text-lg font-serif font-bold">Active</p>
-          </div>
-          <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm">
-            <FileText size={20} className="text-zinc-600 mb-2" />
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Records</p>
-            <p className="text-lg font-serif font-bold">{prescriptions.length}</p>
-          </div>
-          <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm">
-            <Bell size={20} className="text-amber-500 mb-2" />
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Reminders</p>
-            <p className="text-lg font-serif font-bold">{reminders.length}</p>
-          </div>
-          <div className="bg-white p-4 rounded-3xl border border-zinc-100 shadow-sm">
-            <Heart size={20} className="text-emerald-500 mb-2" />
-            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Status</p>
-            <p className="text-lg font-serif font-bold">Stable</p>
-          </div>
+          {[
+            { label: 'Total Records', value: prescriptions.length, icon: FileText, color: 'text-zinc-600', bg: 'bg-white' },
+            { label: 'Active Meds', value: reminders.length, icon: Activity, color: 'text-red-600', bg: 'bg-white' },
+            { label: 'Latest Visit', value: prescriptions.length > 0 ? 'Today' : 'None', icon: Clock, color: 'text-blue-600', bg: 'bg-white' },
+            { label: 'Health Score', value: 'Stable', icon: Heart, color: 'text-emerald-500', bg: 'bg-white' },
+          ].map((stat, i) => (
+            <motion.div 
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.1 }}
+              className={`${stat.bg} p-5 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 flex flex-col items-start gap-2`}
+            >
+              <stat.icon size={18} className={stat.color} />
+              <div>
+                <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest mb-0.5">{stat.label}</p>
+                <p className="text-xl font-serif font-black text-zinc-950">{stat.value}</p>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
-        {/* Reminders Section */}
+        {/* Search & Filter */}
+        <div className="relative group">
+          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={20} />
+          <input 
+            type="text"
+            placeholder="Search prescriptions by diagnosis or doctor..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-zinc-100 rounded-3xl pl-14 pr-6 py-5 text-sm font-bold shadow-xl shadow-zinc-200/30 outline-none focus:ring-2 focus:ring-red-600/10 focus:border-red-600 transition-all placeholder:text-zinc-400"
+          />
+        </div>
+
+        {/* Prescription Locker Grid */}
         <section>
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-950 italic">Upcoming Follow-ups</h2>
-            <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
-              <Clock size={14} className="text-zinc-400" />
+          <div className="flex items-center justify-between mb-6 px-2">
+            <h2 className="text-sm font-black uppercase tracking-[0.2em] text-zinc-950 flex items-center gap-2 italic">
+              <ShieldCheck size={18} className="text-red-600" /> Digital Records Locker
+            </h2>
+            <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{filteredPrescriptions.length} Records found</p>
+          </div>
+          
+          {loading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-48 bg-zinc-100 animate-pulse rounded-[2.5rem]"></div>
+              ))}
             </div>
-          </div>
-          <div className="space-y-3">
-            {reminders.length > 0 ? reminders.map((rem, idx) => (
-              <motion.div 
-                key={rem.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-amber-50 border border-amber-100 p-5 rounded-3xl flex items-center justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-amber-600 shadow-sm">
-                    <Calendar size={24} />
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-zinc-950">{rem.message || 'Follow-up Consultation'}</h3>
-                    <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mt-1">{rem.date}</p>
-                  </div>
-                </div>
-                <ChevronRight size={20} className="text-amber-300" />
-              </motion.div>
-            )) : (
-              <div className="bg-zinc-50 border border-dashed border-zinc-200 p-10 rounded-3xl text-center">
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">No pending reminders</p>
+          ) : filteredPrescriptions.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <AnimatePresence mode='popLayout'>
+                {filteredPrescriptions.map((rx, idx) => (
+                  <motion.div 
+                    key={rx.id}
+                    layout
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    transition={{ delay: idx * 0.05 }}
+                    onClick={() => setSelectedRxId(rx.id)}
+                    className="bg-white p-7 rounded-[2.5rem] border border-zinc-100 shadow-xl shadow-zinc-200/20 hover:shadow-2xl hover:shadow-red-600/5 hover:-translate-y-1 transition-all group cursor-pointer relative overflow-hidden"
+                  >
+                    <div className="absolute top-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="bg-red-600 text-white p-2 rounded-full shadow-lg">
+                        <Download size={16} />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-start mb-6">
+                      <div className="w-12 h-12 rounded-2xl bg-zinc-50 text-zinc-400 flex items-center justify-center group-hover:bg-red-50 group-hover:text-red-600 transition-colors border border-zinc-100">
+                        <FileText size={24} />
+                      </div>
+                      <div className="text-right">
+                        <span className="px-2 py-1 bg-emerald-50 text-emerald-600 rounded text-[9px] font-bold uppercase tracking-widest border border-emerald-100">Verified</span>
+                        <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-2">
+                          {rx.createdAt?.toDate ? new Date(rx.createdAt.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Recent'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <h3 className="text-xl font-serif font-black mb-2 text-zinc-950 leading-tight group-hover:text-red-600 transition-colors">
+                      {rx.diagnosis || 'Clinical Consultation'}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 mb-6 text-zinc-500">
+                      <Stethoscope size={14} className="text-red-600" />
+                      <p className="text-xs font-bold uppercase tracking-widest">Dr. {rx.doctorName || 'Sahab'}</p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <span className="px-3 py-1 bg-zinc-50 text-[10px] font-bold text-zinc-500 rounded-lg border border-zinc-100">Prescription Record</span>
+                      <span className="px-3 py-1 bg-zinc-50 text-[10px] font-bold text-zinc-500 rounded-lg border border-zinc-100 italic">#{rx.id.slice(0, 6)}</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="bg-zinc-50 border-2 border-dashed border-zinc-200 p-20 rounded-[3rem] text-center">
+              <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl shadow-zinc-200/50">
+                <FileText size={32} className="text-zinc-200" />
               </div>
-            )}
-          </div>
+              <h3 className="text-lg font-serif font-bold text-zinc-950 mb-1">Your Locker is Empty</h3>
+              <p className="text-sm text-zinc-400 font-medium">Once your doctor issues a prescription, it will appear here automatically.</p>
+            </div>
+          )}
         </section>
 
-        {/* Prescription History */}
-        <section>
-          <div className="flex items-center justify-between mb-4 px-2">
-            <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-950 italic">Medical Records</h2>
-            <div className="w-8 h-8 rounded-full bg-zinc-100 flex items-center justify-center">
-              <FileText size={14} className="text-zinc-400" />
+        {/* Help & Support Card */}
+        <div className="bg-zinc-950 p-8 rounded-[3rem] text-white relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-red-600/20 rounded-full blur-3xl -mr-16 -mt-16"></div>
+          <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+            <div>
+              <h3 className="text-xl font-serif font-bold mb-2">Need a copy of your records?</h3>
+              <p className="text-zinc-500 text-sm font-medium">You can download and share your medical documents securely with other providers.</p>
             </div>
+            <button className="px-8 py-4 bg-white text-zinc-950 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-zinc-200 transition-all active:scale-95 shadow-xl whitespace-nowrap">
+              Learn More
+            </button>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {prescriptions.length > 0 ? prescriptions.map((rx, idx) => (
-              <motion.div 
-                key={rx.id}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: idx * 0.1 }}
-                className="bg-white p-6 rounded-3xl border border-zinc-100 shadow-sm hover:shadow-md transition-shadow group cursor-pointer"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="w-10 h-10 rounded-xl bg-red-50 text-red-600 flex items-center justify-center group-hover:bg-red-600 group-hover:text-white transition-colors">
-                    <FileText size={20} />
-                  </div>
-                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{new Date(rx.created_at?.toDate()).toLocaleDateString()}</span>
-                </div>
-                <h3 className="text-lg font-serif font-bold mb-2 uppercase tracking-tight">{rx.diagnosis || 'Clinical Prescription'}</h3>
-                <p className="text-xs text-zinc-500 font-medium mb-4 line-clamp-2">{rx.symptoms?.join(', ') || 'General review'}</p>
-                <div className="flex flex-wrap gap-1">
-                  {rx.medicines?.slice(0, 3).map((m: any, i: number) => (
-                    <span key={i} className="px-2 py-1 bg-zinc-50 text-[9px] font-bold text-zinc-400 rounded-lg border border-zinc-100 uppercase">{m.name}</span>
-                  ))}
-                  {rx.medicines?.length > 3 && <span className="text-[9px] font-bold text-zinc-300">+{rx.medicines.length - 3} more</span>}
-                </div>
-              </motion.div>
-            )) : (
-              <div className="col-span-full bg-zinc-50 border border-dashed border-zinc-200 p-20 rounded-3xl text-center">
-                <FileText size={48} className="text-zinc-200 mx-auto mb-4" />
-                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">No prescriptions found</p>
-              </div>
-            )}
-          </div>
-        </section>
+        </div>
       </main>
     </div>
   );

@@ -39,16 +39,22 @@ export default function App() {
         setAuthToken(token);
         
         const authUser: AuthUser = {
-          name: firebaseUser.displayName || 'Dr. ' + firebaseUser.email!.split('@')[0],
+          name: firebaseUser.displayName || (firebaseUser.email!.includes('patient') ? '' : 'Dr. ') + firebaseUser.email!.split('@')[0],
           email: firebaseUser.email!,
-          role: 'doctor', // Defaulting to doctor for now, or fetch from Firestore custom claims
+          role: firebaseUser.email!.includes('patient') ? 'patient' : 'doctor', // Simple heuristic for now
           token: token
         };
+
+        if (authUser.role === 'patient') {
+          authUser.patientId = firebaseUser.uid.slice(0, 8).toUpperCase();
+        }
         
         setUser(authUser);
         // Only set dashboard if we're coming from Landing or Login
         setCurrentScreen(current => 
-          (current === 'LANDING' || current === 'LOGIN') ? 'DASHBOARD' : current
+          (current === 'LANDING' || current === 'LOGIN') 
+            ? (authUser.role === 'doctor' ? 'DASHBOARD' : 'PATIENT_DASHBOARD') 
+            : current
         );
       } else {
         setUser(null);

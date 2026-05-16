@@ -22,12 +22,18 @@ export default function LoginScreen({ onLogin }: { onLogin: (userData: AuthUser 
       const token = await result.user.getIdToken();
       setAuthToken(token);
       
-      onLogin({ 
+      const userData: AuthUser = { 
         email: result.user.email!, 
         role: loginRole, 
-        name: result.user.displayName || 'Dr. ' + result.user.email!.split('@')[0], 
+        name: result.user.displayName || (loginRole === 'doctor' ? 'Dr. ' : '') + result.user.email!.split('@')[0], 
         token: token 
-      });
+      };
+
+      if (loginRole === 'patient') {
+        userData.patientId = result.user.uid.slice(0, 8).toUpperCase();
+      }
+      
+      onLogin(userData);
     } catch (err: any) {
       setError(err.message || 'Google login failed');
     } finally {
@@ -61,12 +67,19 @@ export default function LoginScreen({ onLogin }: { onLogin: (userData: AuthUser 
         const token = await userCredential.user.getIdToken();
         setAuthToken(token);
         
-        onLogin({ 
+        const userData: AuthUser = { 
           email: userCredential.user.email!, 
           role: loginRole, 
-          name: userCredential.user.displayName || 'Dr. ' + userCredential.user.email!.split('@')[0], 
+          name: userCredential.user.displayName || (loginRole === 'doctor' ? 'Dr. ' : '') + userCredential.user.email!.split('@')[0], 
           token: token 
-        });
+        };
+
+        if (loginRole === 'patient') {
+          // If a patient logs in, give them a consistent ID based on their email hash or UID
+          userData.patientId = userCredential.user.uid.slice(0, 8).toUpperCase();
+        }
+        
+        onLogin(userData);
       }
     } catch (err: any) {
       setError(err.message || 'Login failed');
