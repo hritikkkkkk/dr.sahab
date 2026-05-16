@@ -204,7 +204,8 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
   };
 
   const shareWhatsApp = () => {
-    const text = `Prescription for ${patient?.name}\nDiagnosis: ${diagnosis}\nMedicines:\n${prescriptionItems.map((m, i) => `${i+1}. ${m.name} (${m.strength})`).join('\n')}`;
+    const rxUrl = `${window.location.origin}/rx/${patient?.id || 'demo'}`;
+    const text = `*Prescription for ${patient?.name}*\n\nView Softcopy: ${rxUrl}\n\n*Diagnosis:* ${diagnosis}\n*Medicines:*\n${prescriptionItems.map((m, i) => `${i+1}. ${m.name} (${m.strength})`).join('\n')}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
