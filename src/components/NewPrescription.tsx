@@ -41,6 +41,7 @@ export default function NewPrescription({ user, setScreen }: { user: AuthUser, s
   
   // New Patient Form
   const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
   const [newAge, setNewAge] = useState('');
   const [newGender, setNewGender] = useState('Male');
   const [newWeight, setNewWeight] = useState('');
@@ -97,6 +98,7 @@ export default function NewPrescription({ user, setScreen }: { user: AuthUser, s
     const p = { 
       id: 'temp-' + Date.now(), 
       name: newName, 
+      phone: newPhone,
       age: newAge, 
       gender: newGender,
       weight: newWeight,
@@ -109,6 +111,7 @@ export default function NewPrescription({ user, setScreen }: { user: AuthUser, s
       const docRef = await addDoc(collection(db, 'patients'), {
         doctor_id: doctorId,
         name: newName,
+        phone: newPhone,
         age: parseInt(newAge),
         gender: newGender,
         allergies: [],
@@ -283,6 +286,7 @@ export default function NewPrescription({ user, setScreen }: { user: AuthUser, s
               ) : (
                 <div className="space-y-3">
                   <input type="text" placeholder="Full Name" value={newName} onChange={e => setNewName(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-xl text-sm font-medium outline-none focus:border-zinc-950" />
+                  <input type="tel" placeholder="WhatsApp Number" value={newPhone} onChange={e => setNewPhone(e.target.value)} className="w-full px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-xl text-sm font-medium outline-none focus:border-zinc-950" />
                   <div className="flex gap-2">
                     <input type="number" placeholder="Age" value={newAge} onChange={e => setNewAge(e.target.value)} className="w-1/3 px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-xl text-sm font-medium outline-none focus:border-zinc-950" />
                     <select value={newGender} onChange={e => setNewGender(e.target.value)} className="w-1/3 px-4 py-3 bg-zinc-50 border border-zinc-100 rounded-xl text-sm font-bold outline-none focus:border-zinc-950">

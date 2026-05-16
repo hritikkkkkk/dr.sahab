@@ -169,6 +169,8 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
       const rxRef = await addDoc(collection(db, 'prescriptions'), {
         doctor_id: doctorId,
         patient_id: patient.id,
+        patientId: patient.patientId || patient.id.slice(0, 8).toUpperCase(), // Ensure compatibility with Patient Dashboard
+        doctorName: user.name || 'Sahab',
         diagnosis,
         created_at: serverTimestamp()
       });
@@ -180,7 +182,14 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
         });
       }
 
-      alert('Prescription saved successfully!');
+      // Automatically trigger WhatsApp share after successful issue
+      const rxUrl = `${window.location.origin}/rx/${rxRef.id}`;
+      const text = `*Hello ${patient?.name},*\n\nYour digital prescription from Dr. Sahab is ready.\n\n📄 *View/Download Softcopy:* ${rxUrl}\n\n*Diagnosis:* ${diagnosis}\n*Medicines:*\n${prescriptionItems.map((m, i) => `${i+1}. ${m.name} (${m.strength})`).join('\n')}\n\n_Stay Healthy!_`;
+      
+      const phone = patient?.phone || '';
+      window.open(`https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`, '_blank');
+
+      alert('Prescription issued and shared via WhatsApp!');
       setScreen('DASHBOARD');
     } catch (e) {
       console.error(e);
