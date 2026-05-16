@@ -115,7 +115,7 @@ export default function PatientProfile({ user, setScreen }: { user: AuthUser, se
           setPatient(patientData);
           fetchReminders(patientData.id);
 
-          // Fetch prescriptions for this patient
+          // Fetch ALL prescriptions for this patient
           const rxQ = query(
             collection(db, 'prescriptions'),
             where('patient_id', '==', patientData.id),
@@ -124,7 +124,7 @@ export default function PatientProfile({ user, setScreen }: { user: AuthUser, se
           const rxSnap = await getDocs(rxQ);
           const rxList = await Promise.all(rxSnap.docs.map(async (doc) => {
             const rxData = { id: doc.id, ...doc.data() };
-            // Fetch items for this rx
+            // Fetch items for this specific prescription
             const itemsQ = query(collection(db, 'prescription_items'), where('prescription_id', '==', rxData.id));
             const itemsSnap = await getDocs(itemsQ);
             return {
