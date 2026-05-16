@@ -94,6 +94,11 @@ export default function PatientDashboard({ user, setScreen }: { user: AuthUser, 
     window.location.reload();
   };
 
+  const filteredPrescriptions = prescriptions.filter(rx => 
+    rx.diagnosis?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    rx.doctorName?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appointmentDate || !appointmentReason) return;
