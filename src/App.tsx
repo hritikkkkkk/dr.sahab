@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Screen, Sidebar, Navbar, MobileNav, AuthUser, getAuthToken, clearAuthToken } from './components/Shared';
+import { Screen, Sidebar, Navbar, MobileNav, AuthUser, setAuthToken, clearAuthToken } from './components/Shared';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
 import PatientProfile from './components/PatientProfile';
@@ -9,7 +9,8 @@ import Schedule from './components/Schedule';
 import Settings from './components/Settings';
 import LandingPage from './components/LandingPage';
 import PatientDashboard from './components/PatientDashboard';
-import { signInWithCustomToken } from 'firebase/auth';
+import Analytics from './components/Analytics';
+import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
 
 export default function App() {
@@ -18,36 +19,31 @@ export default function App() {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
-    const verifyUser = async () => {
-      const token = getAuthToken();
-      if (!token) {
-        setInitializing(false);
-        return;
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const token = await firebaseUser.getIdToken();
+        setAuthToken(token);
+        
+        const authUser: AuthUser = {
+          name: firebaseUser.displayName || 'Dr. ' + firebaseUser.email!.split('@')[0],
+          email: firebaseUser.email!,
+          role: 'doctor', // Defaulting to doctor for now, or fetch from Firestore custom claims
+          token: token
+        };
+        
+        setUser(authUser);
+        // Only set dashboard if we're coming from Landing or Login
+        setCurrentScreen(current => 
+          (current === 'LANDING' || current === 'LOGIN') ? 'DASHBOARD' : current
+        );
+      } else {
+        setUser(null);
+        clearAuthToken();
       }
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          const authUser = { ...data.user, token, firebaseToken: data.firebaseToken };
-          setUser(authUser);
-          
-          if (data.firebaseToken) {
-            await signInWithCustomToken(auth, data.firebaseToken);
-          }
-          
-          setCurrentScreen(data.user.role === 'doctor' ? 'DASHBOARD' : 'PATIENT_DASHBOARD');
-        } else {
-          clearAuthToken();
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setInitializing(false);
-      }
-    };
-    verifyUser();
+      setInitializing(false);
+    });
+
+    return () => unsubscribe();
   }, []);
 
   const handleLogin = async (userData: AuthUser | Screen) => {
@@ -55,15 +51,6 @@ export default function App() {
       setCurrentScreen(userData);
     } else {
       setUser(userData);
-      
-      if (userData.firebaseToken) {
-        try {
-          await signInWithCustomToken(auth, userData.firebaseToken);
-        } catch (e) {
-          console.error("Firebase Auth Error:", e);
-        }
-      }
-      
       setCurrentScreen(userData.role === 'doctor' ? 'DASHBOARD' : 'PATIENT_DASHBOARD');
     }
   };
@@ -95,7 +82,7 @@ export default function App() {
       case 'SCHEDULE':
         return <Schedule user={user!} setScreen={setCurrentScreen} />;
       case 'ANALYTICS':
-        return <Dashboard user={user!} setScreen={setCurrentScreen} />;
+        return <Analytics user={user!} setScreen={setCurrentScreen} />;
       case 'SETTINGS':
         return <Settings user={user!} setScreen={setCurrentScreen} />;
       default:
