@@ -32,27 +32,48 @@ export default function DigitalPrescription({ patientId, onBack }: DigitalRxProp
             { drugName: 'Metoprolol', dosage: '25mg', frequency: '0-0-1', duration: '30 Days', instructions: 'After dinner' }
           ]);
         } else {
-          // Fetch real data
+          let foundRx: any = null;
+          let foundPatient: any = null;
+
+          // 1. Try fetching by patientId (to show latest for that patient)
           const pDoc = await getDoc(doc(db, 'patients', patientId));
+          
           if (pDoc.exists()) {
-            setPatient({ id: pDoc.id, ...pDoc.data() });
+            foundPatient = { id: pDoc.id, ...pDoc.data() };
+            const rxQuery = query(
+              collection(db, 'prescriptions'), 
+              where('patientId', '==', patientId),
+              orderBy('createdAt', 'desc'),
+              limit(1)
+            );
+            const rxSnapshot = await getDocs(rxQuery);
+            if (!rxSnapshot.empty) {
+              foundRx = { id: rxSnapshot.docs[0].id, ...rxSnapshot.docs[0].data() };
+            }
+          } else {
+            // 2. Fallback: Check if the ID is actually a direct prescription ID
+            const rxDoc = await getDoc(doc(db, 'prescriptions', patientId));
+            if (rxDoc.exists()) {
+              foundRx = { id: rxDoc.id, ...rxDoc.data() };
+              
+              // Fetch the patient for this prescription
+              if (foundRx.patientId) {
+                const pRef = await getDoc(doc(db, 'patients', foundRx.patientId));
+                if (pRef.exists()) {
+                  foundPatient = { id: pRef.id, ...pRef.data() };
+                }
+              }
+            }
           }
 
-          const rxQuery = query(
-            collection(db, 'prescriptions'), 
-            where('patientId', '==', patientId),
-            orderBy('createdAt', 'desc'),
-            limit(1)
-          );
-          const rxSnapshot = await getDocs(rxQuery);
-          
-          if (!rxSnapshot.empty) {
-            const rxData = rxSnapshot.docs[0];
-            setPrescription({ id: rxData.id, ...rxData.data() });
-            
+          setPatient(foundPatient);
+          setPrescription(foundRx);
+
+          // 3. Fetch items for the prescription we found
+          if (foundRx) {
             const itemsQuery = query(
               collection(db, 'prescription_items'),
-              where('prescriptionId', '==', rxData.id)
+              where('prescriptionId', '==', foundRx.id)
             );
             const itemsSnapshot = await getDocs(itemsQuery);
             setItems(itemsSnapshot.docs.map(d => d.data()));
