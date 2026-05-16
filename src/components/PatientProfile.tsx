@@ -134,34 +134,44 @@ export default function PatientProfile({ user, setScreen }: { user: AuthUser, se
           }));
           setPrescriptions(rxList);
         } else {
-          setPatient({
-            id: 'mock-1',
-            name: 'Demo Patient',
-            age: 45,
-            gender: 'Male',
-            blood_group: 'O+',
-            weight: 75,
-            phone: '+1 234 567 8900',
-            address: '123 Health Ave, Medical District',
-            allergies: ['Penicillin', 'Peanuts'],
-            chronic_conditions: ['Hypertension']
-          });
+          const cached = localStorage.getItem('current_patient');
+          if (cached) {
+            setPatient(JSON.parse(cached));
+          } else {
+            setPatient({
+              id: 'mock-1',
+              name: 'Aditya Sharma',
+              age: 45,
+              gender: 'Male',
+              blood_group: 'B+',
+              weight: 72,
+              phone: '+91 98765 43210',
+              address: 'Andheri West, Mumbai, MH',
+              allergies: ['Dust'],
+              chronic_conditions: ['Hypertension']
+            });
+          }
         }
       } catch (e) {
         console.error(e);
-        // Provide rich mock data so the UI doesn't disappear on error
-        setPatient({
-          id: 'error-mock-1',
-          name: 'Demo Patient (Offline)',
-          age: 38,
-          gender: 'Female',
-          blood_group: 'A-',
-          weight: 62,
-          phone: '+1 987 654 3210',
-          address: '456 Wellness Blvd',
-          allergies: ['Dust'],
-          chronic_conditions: ['Asthma']
-        });
+        const cached = localStorage.getItem('current_patient');
+        if (cached) {
+          setPatient(JSON.parse(cached));
+        } else {
+          // Provide rich Indian mock data so the UI doesn't disappear on error
+          setPatient({
+            id: 'error-mock-1',
+            name: 'Priya Patel (Offline)',
+            age: 38,
+            gender: 'Female',
+            blood_group: 'A-',
+            weight: 62,
+            phone: '+91 91234 56789',
+            address: 'Navrangpura, Ahmedabad, GJ',
+            allergies: ['Dust'],
+            chronic_conditions: ['Asthma']
+          });
+        }
       } finally {
         setLoading(false);
       }
