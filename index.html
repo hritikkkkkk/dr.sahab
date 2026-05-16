@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dr. Sahab - Clinical Access Portal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400..700;1,400..700&family=Manrope:wght@400..700&family=Newsreader:ital,opsz,wght@0,6..72,400..700;1,6..72,400..700&family=Space+Grotesk:wght@400..700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.addEventListener('error', function(event) {
+        document.body.innerHTML += '<div style="color: red; padding: 20px; font-family: monospace; z-index: 9999; position: relative;"><h3>Uncaught Error:</h3>' + event.message + '<br>' + event.filename + ':' + event.lineno + '<br><pre>' + (event.error && event.error.stack ? event.error.stack : '') + '</pre></div>';
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        document.body.innerHTML += '<div style="color: red; padding: 20px; font-family: monospace; z-index: 9999; position: relative;"><h3>Unhandled Promise Rejection:</h3>' + event.reason + '<br><pre>' + (event.reason && event.reason.stack ? event.reason.stack : '') + '</pre></div>';
+      });
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
