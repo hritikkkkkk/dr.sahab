@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { Screen, AuthUser } from './Shared';
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, addDoc, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import * as QRCode from 'qrcode.react';
 import jsPDF from 'jspdf';
@@ -173,6 +173,12 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
         doctorName: user.name || 'Sahab',
         diagnosis,
         created_at: serverTimestamp()
+      });
+
+      // Update patient's last_visited timestamp to make them the "most recent"
+      const patientRef = doc(db, 'patients', patient.id);
+      await updateDoc(patientRef, {
+        last_visited: serverTimestamp()
       });
 
       for (const item of prescriptionItems) {
