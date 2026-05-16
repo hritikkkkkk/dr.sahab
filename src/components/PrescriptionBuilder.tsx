@@ -63,33 +63,28 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
       if (!doctorId) return;
 
       const cachedPatientStr = localStorage.getItem('current_patient');
-      let fallbackPatient = cachedPatientStr ? JSON.parse(cachedPatientStr) : { 
-        name: 'Demo Patient (Offline)', 
-        age: '30', 
-        gender: 'M', 
-        id: 'demo-123',
-        allergies: ['Penicillin']
-      };
-
-      try {
-        const q = query(collection(db, 'patients'), where('doctor_id', '==', doctorId));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const pData: any = { id: snap.docs[0].id, ...snap.docs[0].data() };
-          setPatient(pData);
-          if (pData.allergies?.length) {
-            setAlerts([{ id: 1, type: 'critical', message: 'Allergy Conflict', detail: `Patient is allergic to: ${pData.allergies.join(', ')}` }]);
-          }
-        } else {
-          // Fallback if no patients found
-          setPatient(fallbackPatient);
+      if (cachedPatientStr) {
+        const pData = JSON.parse(cachedPatientStr);
+        setPatient(pData);
+        if (pData.allergies?.length) {
+          setAlerts([{ id: 1, type: 'critical', message: 'Allergy Conflict', detail: `Patient is allergic to: ${pData.allergies.join(', ')}` }]);
         }
-      } catch (error) {
-        console.error("Error fetching patient context:", error);
-        // Fallback patient so UI doesn't hang indefinitely on loading
-        setPatient(fallbackPatient);
-        if (!cachedPatientStr) {
-          setAlerts([{ id: 1, type: 'critical', message: 'Database Error', detail: 'Could not fetch real patient data due to permissions. Using demo data.' }]);
+      } else {
+        // Fallback only if no patient is in cache (unlikely if coming from NewPrescription)
+        try {
+          const q = query(
+            collection(db, 'patients'), 
+            where('doctor_id', '==', doctorId),
+            orderBy('last_visited', 'desc'),
+            limit(1)
+          );
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            const pData: any = { id: snap.docs[0].id, ...snap.docs[0].data() };
+            setPatient(pData);
+          }
+        } catch (error) {
+          console.error("Error fetching patient context:", error);
         }
       }
 
