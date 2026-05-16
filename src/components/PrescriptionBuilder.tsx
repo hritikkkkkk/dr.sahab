@@ -535,7 +535,7 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
                  <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 bg-white p-4 rounded-xl border border-zinc-200 shadow-sm">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-zinc-50 rounded-lg flex items-center justify-center shrink-0 border border-zinc-100">
-                        <QRCode.QRCodeSVG value="https://drsahab.ai/verify" size={24} />
+                        <QRCode.QRCodeSVG value={`${window.location.origin}/verify`} size={24} />
                       </div>
                       <p className="text-[10px] font-medium text-zinc-500 leading-tight">Chemist verification QR enabled<br/><span className="text-emerald-600 font-bold">Verified Digital Signature Active</span></p>
                     </div>
@@ -668,7 +668,7 @@ export default function PrescriptionBuilder({ user, setScreen }: { user: AuthUse
             <div className="mt-auto border-t border-zinc-100 pt-8 flex justify-between items-end print:pt-4">
               <div className="flex flex-col items-start">
                 <div className="bg-white p-1 border border-zinc-200 rounded-lg inline-block shadow-sm">
-                  <QRCode.QRCodeSVG value={`https://drsahab.ai/rx/${patient?.id || 'demo'}`} size={64} />
+                  <QRCode.QRCodeSVG value={`${window.location.origin}/rx/${patient?.id || 'demo'}`} size={64} />
                 </div>
                 <p className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest mt-2">Scan for Soft Copy</p>
               </div>
